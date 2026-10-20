@@ -439,6 +439,187 @@ textarea {
   font: 11px ui-monospace, monospace;
 }
 
+.tag-filter {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.tag-filter-trigger {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border, rgb(94 246 255 / 18%));
+  border-radius: 8px;
+  color: var(--ui-text-secondary, #9fb0c4);
+  background: var(--ui-surface-raised, rgb(11 18 33 / 78%));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.tag-filter-trigger > svg {
+  width: 14px;
+}
+
+.tag-filter-trigger > svg:last-child {
+  width: 12px;
+  color: var(--ui-text-muted, #6f8096);
+}
+
+.tag-filter-trigger i {
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--ui-accent, var(--cyan));
+  font-size: 10px;
+  font-style: normal;
+}
+
+.tag-filter-trigger:hover,
+.tag-filter-trigger.is-active {
+  color: var(--ui-accent-strong, var(--cyan));
+  border-color: var(--ui-border-strong, rgb(94 246 255 / 38%));
+  background: var(--ui-accent-soft, rgb(94 246 255 / 8%));
+}
+
+.tag-filter-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 300px;
+  padding: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface-raised);
+  box-shadow: var(--ui-shadow);
+}
+
+.tag-filter-search {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface-muted);
+}
+
+.tag-filter-search svg {
+  width: 14px;
+  color: var(--ui-text-muted);
+}
+
+.search-panel .tag-filter-search input {
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  color: var(--ui-text);
+  font-size: 12px;
+}
+
+.tag-filter-options {
+  display: grid;
+  max-height: 220px;
+  gap: 7px;
+  margin-top: 9px;
+  overflow: auto;
+}
+
+.tag-filter-options > small {
+  color: var(--ui-text-muted);
+  font-size: 10px;
+}
+
+.tag-filter-options > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-filter-options button,
+.active-tag-filters button,
+.essay-tags button,
+.tag-chip,
+.selected-tag,
+.readonly-tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
+  white-space: nowrap;
+}
+
+.tag-filter-options button {
+  height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.tag-filter-options button svg {
+  width: 12px;
+}
+
+.tag-filter-options button:hover,
+.tag-filter-options button.is-selected {
+  color: var(--ui-accent-strong);
+  border-color: var(--ui-border-strong);
+  background: var(--ui-accent-soft);
+}
+
+.tag-filter-options > span {
+  padding: 9px;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.active-tag-filters {
+  display: flex;
+  max-width: 1420px;
+  min-height: 34px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -7px auto 12px;
+}
+
+.active-tag-filters > span {
+  margin-right: 2px;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.active-tag-filters button {
+  height: 27px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.active-tag-filters button svg {
+  width: 11px;
+}
+
+.active-tag-filters button:hover {
+  color: var(--ui-accent-strong);
+  border-color: var(--ui-border-strong);
+}
+
+.active-tag-filters .clear-tag-filters {
+  margin-left: 3px;
+  border-color: transparent;
+  color: var(--ui-text-muted);
+  background: transparent;
+}
+
 .essay-table {
   max-width: 1420px;
   margin: 0 auto;
@@ -594,6 +775,31 @@ textarea {
   white-space: nowrap;
 }
 
+.essay-tags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.essay-tags button {
+  height: 23px;
+  padding: 0 7px;
+  color: var(--ui-accent-strong);
+  background: var(--ui-accent-soft);
+  font-size: 10px;
+}
+
+.essay-tags button:hover {
+  border-color: var(--ui-border-strong);
+}
+
+.essay-tags i {
+  color: var(--ui-text-muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
 .essay-main strong {
   color: #dbe8f5;
   font-size: 15px;
@@ -705,6 +911,26 @@ textarea {
 
 .prompt-panel {
   padding: 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--ui-accent) 36%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.prompt-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.prompt-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prompt-panel::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ui-accent) 34%, transparent);
+  background-clip: padding-box;
 }
 
 label {
@@ -745,6 +971,103 @@ label input:focus,
 label textarea:focus {
   border-color: rgb(94 246 255 / 48%);
   box-shadow: 0 0 0 3px rgb(94 246 255 / 6%);
+}
+
+.compose-tag-field {
+  margin-bottom: 18px;
+}
+
+.compose-tag-field > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ui-text-muted, #8190a6);
+  font-size: 12px;
+}
+
+.tag-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.tag-group > small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ui-text-muted);
+  font-size: 10px;
+}
+
+.tag-chip-row,
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag-chip,
+.selected-tag {
+  min-height: 27px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.tag-chip svg,
+.selected-tag svg {
+  width: 11px;
+}
+
+.tag-chip:hover,
+.tag-chip.is-selected,
+.selected-tag:hover {
+  color: var(--ui-accent-strong);
+  border-color: var(--ui-border-strong);
+  background: var(--ui-accent-soft);
+}
+
+.selected-tags > span {
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.tag-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 35px;
+  gap: 6px;
+}
+
+.tag-input-row input {
+  width: 100%;
+  height: 35px;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  color: var(--ui-text);
+  background: var(--ui-surface-muted);
+  font-size: 11px;
+}
+
+.tag-input-row input:focus {
+  border-color: var(--ui-border-strong);
+}
+
+.tag-input-row button {
+  display: grid;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  color: var(--ui-accent-strong);
+  background: var(--ui-accent-soft);
+}
+
+.tag-input-row button svg {
+  width: 14px;
+}
+
+.tag-message {
+  color: var(--ui-danger);
+  font-size: 10px;
 }
 
 .privacy-note,
@@ -929,6 +1252,91 @@ label textarea:focus {
   color: #e1edf7;
   font-size: 15px;
   line-height: 1.45;
+}
+
+.side-tag-field {
+  margin: 0 6px 13px;
+}
+
+.side-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.side-field-heading > span {
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.side-field-heading > button {
+  padding: 0;
+  border: 0;
+  color: var(--ui-accent-strong);
+  background: transparent;
+  font-size: 10px;
+}
+
+.readonly-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.readonly-tags span {
+  min-height: 24px;
+  padding: 0 7px;
+  color: var(--ui-accent-strong);
+  background: var(--ui-accent-soft);
+  font-size: 10px;
+}
+
+.readonly-tags em {
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.side-tag-field .tag-editor {
+  gap: 8px;
+}
+
+.side-tag-field .tag-chip,
+.side-tag-field .selected-tag {
+  min-height: 24px;
+  padding: 0 6px;
+}
+
+.side-tag-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.side-tag-actions button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-raised);
+  font-size: 10px;
+}
+
+.side-tag-actions button.is-primary {
+  color: #fff;
+  border-color: transparent;
+  background: var(--ui-accent-strong);
+}
+
+.side-tag-actions button svg {
+  width: 11px;
 }
 
 .side-readonly-field {

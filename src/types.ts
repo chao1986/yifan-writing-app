@@ -14,6 +14,7 @@ export type ReviewSuggestion = {
 export type EssayMetadata = {
   id: string;
   title: string;
+  tags: string[];
   requirements: string;
   reviewPrompt: string;
   status: string;

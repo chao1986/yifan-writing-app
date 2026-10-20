@@ -26,8 +26,11 @@ export const desktopApi = {
     return typeof selected === 'string' ? selected : null;
   },
 
-  listEssays: (query = '') =>
-    invoke<EssaySummary[]>('list_essays', { query }),
+  listEssays: (query = '', tags: string[] = []) =>
+    invoke<EssaySummary[]>('list_essays', { query, tags }),
+
+  listEssayTags: () =>
+    invoke<string[]>('list_essay_tags'),
 
   deleteEssay: (essayId: string) =>
     invoke<void>('delete_essay', { essayId }),
@@ -35,9 +38,13 @@ export const desktopApi = {
   loadEssay: (essayId: string) =>
     invoke<EssayDetail>('load_essay', { essayId }),
 
+  updateEssayTags: (essayId: string, tags: string[]) =>
+    invoke<EssayDetail>('update_essay_tags', { input: { essayId, tags } }),
+
   saveNewDraft: (input: {
     essayId?: string;
     title: string;
+    tags: string[];
     requirements: string;
     reviewPrompt: string;
     content: string;

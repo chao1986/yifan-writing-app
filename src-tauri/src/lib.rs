@@ -13,6 +13,8 @@ use uuid::Uuid;
 const KEYRING_SERVICE: &str = "com.ttlx.yifan-writing-app";
 const KEYRING_USER: &str = "model-api-key";
 const MAX_MODEL_CONVERSATIONS_PER_ESSAY: usize = 50;
+const MAX_ESSAY_TAGS: usize = 8;
+const MAX_TAG_CHARACTERS: usize = 10;
 
 const DEFAULT_REVIEW_PROMPT: &str = r#"你是一名严谨、克制的中文作文修改助手。你的任务不是写评价报告，也不是替学生重写整篇作文，而是定位真正需要修改的原句，并提供可以直接替换的文本。
 
@@ -67,6 +69,8 @@ struct EssayMetadata {
     id: String,
     title: String,
     #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
     requirements: String,
     #[serde(default)]
     review_prompt: String,
@@ -81,6 +85,7 @@ struct EssayMetadata {
 struct EssaySummary {
     id: String,
     title: String,
+    tags: Vec<String>,
     requirements: String,
     review_prompt: String,
     status: String,
@@ -178,6 +183,8 @@ struct DraftInput {
     essay_id: Option<String>,
     title: String,
     #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
     requirements: String,
     #[serde(default)]
     review_prompt: String,
@@ -209,6 +216,13 @@ struct LocalEditInput {
 struct VersionTargetInput {
     essay_id: String,
     version: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EssayTagsInput {
+    essay_id: String,
+    tags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -680,6 +694,35 @@ fn ensure_non_empty(title: &str, content: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn normalize_tags(tags: Vec<String>) -> Result<Vec<String>, String> {
+    let mut normalized = Vec::new();
+    let mut keys = std::collections::HashSet::new();
+    for raw in tags {
+        let tag = raw.trim().trim_start_matches('#').trim();
+        if tag.is_empty() {
+            continue;
+        }
+        if tag
+            .chars()
+            .any(|character| matches!(character, ',' | '，' | '、' | '\n' | '\r'))
+        {
+            return Err("标签中不能包含逗号、顿号或换行。".to_string());
+        }
+        if tag.chars().count() > MAX_TAG_CHARACTERS {
+            return Err(format!("标签“{tag}”不能超过 {MAX_TAG_CHARACTERS} 个字符。"));
+        }
+        let key = tag.to_lowercase();
+        if !keys.insert(key) {
+            continue;
+        }
+        if normalized.len() >= MAX_ESSAY_TAGS {
+            return Err(format!("每篇作文最多添加 {MAX_ESSAY_TAGS} 个标签。"));
+        }
+        normalized.push(tag.to_string());
+    }
+    Ok(normalized)
+}
+
 fn content_path(directory: &Path, metadata: &EssayMetadata) -> PathBuf {
     let final_path = directory.join("final.md");
     if metadata.status == "已定稿" && final_path.exists() {
@@ -1041,6 +1084,7 @@ async fn test_model_connection(app: AppHandle, input: SettingsInput) -> Result<S
 fn save_new_draft(app: AppHandle, input: DraftInput) -> Result<EssayDetail, String> {
     ensure_non_empty(&input.title, &input.content)?;
     let settings = read_settings(&app)?;
+    let tags = normalize_tags(input.tags)?;
     let mut metadata = if let Some(essay_id) = &input.essay_id {
         read_metadata(&essay_directory(&settings, essay_id)?)?
     } else {
@@ -1049,6 +1093,7 @@ fn save_new_draft(app: AppHandle, input: DraftInput) -> Result<EssayDetail, Stri
         EssayMetadata {
             id: format!("essay-{}", &raw_id[..12]),
             title: input.title.trim().to_string(),
+            tags: tags.clone(),
             requirements: input.requirements.trim().to_string(),
             review_prompt: input.review_prompt.trim().to_string(),
             status: "修改中".to_string(),
@@ -1057,6 +1102,7 @@ fn save_new_draft(app: AppHandle, input: DraftInput) -> Result<EssayDetail, Stri
             updated_at: timestamp,
         }
     };
+    metadata.tags = tags;
     metadata.updated_at = now();
 
     let directory = essay_directory(&settings, &metadata.id)?;
@@ -1595,10 +1641,20 @@ fn finalize_essay(app: AppHandle, input: RevisionInput) -> Result<EssayDetail, S
 }
 
 #[tauri::command]
-fn list_essays(app: AppHandle, query: Option<String>) -> Result<Vec<EssaySummary>, String> {
+fn list_essays(
+    app: AppHandle,
+    query: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<Vec<EssaySummary>, String> {
     let settings = read_settings(&app)?;
     let library = library_directory(&settings)?;
     let normalized_query = query.unwrap_or_default().trim().to_lowercase();
+    let normalized_tags = tags
+        .unwrap_or_default()
+        .into_iter()
+        .map(|tag| tag.trim().to_lowercase())
+        .filter(|tag| !tag.is_empty())
+        .collect::<Vec<_>>();
     let mut essays = Vec::new();
 
     for entry in fs::read_dir(library).map_err(|error| error.to_string())? {
@@ -1616,16 +1672,29 @@ fn list_essays(app: AppHandle, query: Option<String>) -> Result<Vec<EssaySummary
         };
         let content = fs::read_to_string(content_path(&directory, &metadata)).unwrap_or_default();
         let searchable = format!(
-            "{} {} {} {}",
-            metadata.title, metadata.requirements, metadata.review_prompt, content
+            "{} {} {} {} {}",
+            metadata.title,
+            metadata.requirements,
+            metadata.review_prompt,
+            metadata.tags.join(" "),
+            content
         )
         .to_lowercase();
         if !normalized_query.is_empty() && !searchable.contains(&normalized_query) {
             continue;
         }
+        let essay_tags = metadata
+            .tags
+            .iter()
+            .map(|tag| tag.to_lowercase())
+            .collect::<std::collections::HashSet<_>>();
+        if normalized_tags.iter().any(|tag| !essay_tags.contains(tag)) {
+            continue;
+        }
         essays.push(EssaySummary {
             id: metadata.id,
             title: metadata.title,
+            tags: metadata.tags,
             requirements: metadata.requirements,
             review_prompt: metadata.review_prompt,
             status: metadata.status,
@@ -1636,6 +1705,46 @@ fn list_essays(app: AppHandle, query: Option<String>) -> Result<Vec<EssaySummary
     }
     essays.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
     Ok(essays)
+}
+
+#[tauri::command]
+fn list_essay_tags(app: AppHandle) -> Result<Vec<String>, String> {
+    let settings = read_settings(&app)?;
+    let library = library_directory(&settings)?;
+    let mut tags = std::collections::HashMap::<String, (String, u128)>::new();
+    for entry in fs::read_dir(library).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if !entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_dir()
+        {
+            continue;
+        }
+        let directory = entry.path();
+        let Ok(metadata) = read_metadata(&directory) else {
+            continue;
+        };
+        let used_at = fs::metadata(metadata_path(&directory))
+            .and_then(|metadata| metadata.modified())
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis())
+            .unwrap_or_default();
+        for tag in metadata.tags {
+            let key = tag.to_lowercase();
+            tags.entry(key)
+                .and_modify(|current| {
+                    if used_at > current.1 {
+                        *current = (tag.clone(), used_at);
+                    }
+                })
+                .or_insert((tag, used_at));
+        }
+    }
+    let mut tags = tags.into_values().collect::<Vec<_>>();
+    tags.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    Ok(tags.into_iter().map(|(tag, _)| tag).collect())
 }
 
 #[tauri::command]
@@ -1650,6 +1759,23 @@ fn load_essay(app: AppHandle, essay_id: String) -> Result<EssayDetail, String> {
     let settings = read_settings(&app)?;
     let directory = essay_directory(&settings, &essay_id)?;
     let metadata = read_metadata(&directory)?;
+    let content = fs::read_to_string(content_path(&directory, &metadata))
+        .map_err(|error| error.to_string())?;
+    let suggestions = read_review(&directory, metadata.current_version);
+    Ok(EssayDetail {
+        metadata,
+        content,
+        suggestions,
+    })
+}
+
+#[tauri::command]
+fn update_essay_tags(app: AppHandle, input: EssayTagsInput) -> Result<EssayDetail, String> {
+    let settings = read_settings(&app)?;
+    let directory = essay_directory(&settings, &input.essay_id)?;
+    let mut metadata = read_metadata(&directory)?;
+    metadata.tags = normalize_tags(input.tags)?;
+    write_json(&metadata_path(&directory), &metadata)?;
     let content = fs::read_to_string(content_path(&directory, &metadata))
         .map_err(|error| error.to_string())?;
     let suggestions = read_review(&directory, metadata.current_version);
@@ -1788,6 +1914,19 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_and_limits_essay_tags() {
+        let tags = normalize_tags(vec![
+            " 记叙文 ".to_string(),
+            "#成长".to_string(),
+            "记叙文".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(tags, vec!["记叙文", "成长"]);
+        assert!(normalize_tags(vec!["这是一个超过十个字符的作文标签".to_string()]).is_err());
+        assert!(normalize_tags((0..9).map(|index| format!("标签{index}")).collect()).is_err());
+    }
+
+    #[test]
     fn includes_each_essay_prompt_in_the_review_request() {
         let history = EssayHistory {
             entries: vec![HistoryEntry {
@@ -1884,6 +2023,7 @@ mod tests {
         let metadata = EssayMetadata {
             id: "essay-test".to_string(),
             title: "一次修改".to_string(),
+            tags: vec!["记叙文".to_string()],
             requirements: "写清楚事情经过".to_string(),
             review_prompt: "保留学生语气".to_string(),
             status: "修改中".to_string(),
@@ -1942,8 +2082,10 @@ pub fn run() {
             save_as_new_version,
             finalize_essay,
             list_essays,
+            list_essay_tags,
             delete_essay,
             load_essay,
+            update_essay_tags,
             list_essay_versions,
             load_essay_version,
             restore_essay_version,

@@ -31,6 +31,7 @@ import {
   TestTube2,
   SquareTerminal,
   Sun,
+  Tag,
   UserRound,
   RotateCcw,
   WandSparkles,
@@ -54,6 +55,10 @@ type Screen = 'library' | 'new' | 'review' | 'settings' | 'conversations';
 type ReviewView = 'annotated' | 'preview';
 type ThemeMode = 'light' | 'dark';
 type Toast = { tone: 'success' | 'error'; title: string; detail?: string };
+
+const COMMON_TAGS = ['记叙文', '议论文', '说明文', '散文', '读后感', '应用文'];
+const MAX_ESSAY_TAGS = 8;
+const MAX_TAG_CHARACTERS = 10;
 
 function getErrorMessage(error: unknown) {
   if (typeof error === 'string') return error;
@@ -96,6 +101,114 @@ function replaceOccurrence(text: string, target: string, replacement: string, oc
     cursor = match + target.length;
   }
   return text;
+}
+
+function uniqueTags(tags: string[]) {
+  const seen = new Set<string>();
+  return tags.filter((tag) => {
+    const key = tag.trim().toLocaleLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function TagEditor({
+  tags,
+  recentTags,
+  onChange,
+}: {
+  tags: string[];
+  recentTags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+  const [message, setMessage] = useState('');
+  const selectedKeys = new Set(tags.map((tag) => tag.toLocaleLowerCase()));
+  const recent = uniqueTags(recentTags)
+    .filter((tag) => !COMMON_TAGS.includes(tag) && !selectedKeys.has(tag.toLocaleLowerCase()))
+    .slice(0, 12);
+
+  const remove = (tag: string) => {
+    onChange(tags.filter((current) => current !== tag));
+    setMessage('');
+  };
+
+  const add = (raw: string) => {
+    const candidates = raw
+      .split(/[，,、\n]+/)
+      .map((tag) => tag.trim().replace(/^#+/, '').trim())
+      .filter(Boolean);
+    if (!candidates.length) return;
+    const next = [...tags];
+    for (const candidate of candidates) {
+      if (candidate.length > MAX_TAG_CHARACTERS) {
+        setMessage(`单个标签最多 ${MAX_TAG_CHARACTERS} 个字符`);
+        return;
+      }
+      if (next.some((tag) => tag.toLocaleLowerCase() === candidate.toLocaleLowerCase())) continue;
+      if (next.length >= MAX_ESSAY_TAGS) {
+        setMessage(`每篇作文最多添加 ${MAX_ESSAY_TAGS} 个标签`);
+        return;
+      }
+      next.push(candidate);
+    }
+    onChange(next);
+    setInput('');
+    setMessage('');
+  };
+
+  const toggleCommon = (tag: string) => {
+    if (selectedKeys.has(tag.toLocaleLowerCase())) remove(tag);
+    else add(tag);
+  };
+
+  return (
+    <div className="tag-editor">
+      <div className="tag-group">
+        <small>常用标签</small>
+        <div className="tag-chip-row">
+          {COMMON_TAGS.map((tag) => (
+            <button type="button" key={tag} className={`tag-chip ${selectedKeys.has(tag.toLocaleLowerCase()) ? 'is-selected' : ''}`} onClick={() => toggleCommon(tag)}>
+              {selectedKeys.has(tag.toLocaleLowerCase()) ? <Check /> : <Plus />}{tag}
+            </button>
+          ))}
+        </div>
+      </div>
+      {recent.length ? (
+        <div className="tag-group">
+          <small>最近使用</small>
+          <div className="tag-chip-row">
+            {recent.map((tag) => <button type="button" key={tag} className="tag-chip" onClick={() => add(tag)}><Plus />{tag}</button>)}
+          </div>
+        </div>
+      ) : null}
+      <div className="tag-group">
+        <small>已添加</small>
+        <div className="selected-tags">
+          {tags.map((tag) => <button type="button" key={tag} className="selected-tag" onClick={() => remove(tag)}>{tag}<X /></button>)}
+          {!tags.length ? <span>暂未添加标签</span> : null}
+        </div>
+      </div>
+      <div className="tag-input-row">
+        <input
+          value={input}
+          maxLength={MAX_TAG_CHARACTERS}
+          onChange={(event) => { setInput(event.target.value); setMessage(''); }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === 'Enter' || event.key === ',' || event.key === '，') {
+              event.preventDefault();
+              add(input);
+            }
+          }}
+          placeholder="输入自定义标签"
+        />
+        <button type="button" aria-label="添加标签" disabled={!input.trim()} onClick={() => add(input)}><Plus /></button>
+      </div>
+      {message ? <span className="tag-message">{message}</span> : null}
+    </div>
+  );
 }
 
 function findMatches(paragraph: string, suggestions: ReviewSuggestion[]) {
@@ -224,9 +337,12 @@ function Sidebar({
 
 function LibraryScreen({
   essays,
+  availableTags,
+  selectedTags,
   query,
   loading,
   onQueryChange,
+  onTagsChange,
   onCreate,
   onOpen,
   onConversations,
@@ -234,9 +350,12 @@ function LibraryScreen({
   notify,
 }: {
   essays: EssaySummary[];
+  availableTags: string[];
+  selectedTags: string[];
   query: string;
   loading: boolean;
   onQueryChange: (value: string) => void;
+  onTagsChange: (tags: string[]) => void;
   onCreate: () => void;
   onOpen: (id: string) => void;
   onConversations: (essay: EssaySummary) => void;
@@ -245,6 +364,36 @@ function LibraryScreen({
 }) {
   const [pendingDelete, setPendingDelete] = useState<EssaySummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [tagQuery, setTagQuery] = useState('');
+  const tagFilterRef = useRef<HTMLDivElement>(null);
+  const normalizedTagQuery = tagQuery.trim().toLocaleLowerCase();
+  const commonFilterTags = COMMON_TAGS.filter((tag) => tag.toLocaleLowerCase().includes(normalizedTagQuery));
+  const personalFilterTags = uniqueTags(availableTags).filter((tag) =>
+    !COMMON_TAGS.includes(tag) && tag.toLocaleLowerCase().includes(normalizedTagQuery),
+  );
+
+  useEffect(() => {
+    if (!tagFilterOpen) return;
+    const close = (event: MouseEvent) => {
+      if (!tagFilterRef.current?.contains(event.target as Node)) setTagFilterOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTagFilterOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [tagFilterOpen]);
+
+  const toggleFilterTag = (tag: string) => {
+    onTagsChange(selectedTags.includes(tag)
+      ? selectedTags.filter((current) => current !== tag)
+      : [...selectedTags, tag]);
+  };
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -281,7 +430,40 @@ function LibraryScreen({
           placeholder="搜索题目、要求或正文关键词"
         />
         {loading ? <LoaderCircle className="spin" /> : <kbd>⌘ K</kbd>}
+        <div className="tag-filter" ref={tagFilterRef}>
+          <button type="button" className={`tag-filter-trigger ${selectedTags.length ? 'is-active' : ''}`} onClick={() => setTagFilterOpen((current) => !current)}>
+            <Tag />标签{selectedTags.length ? <i>{selectedTags.length}</i> : null}<ChevronDown />
+          </button>
+          {tagFilterOpen ? (
+            <div className="tag-filter-popover panel">
+              <div className="tag-filter-search"><Search /><input value={tagQuery} onChange={(event) => setTagQuery(event.target.value)} placeholder="搜索标签" /></div>
+              <div className="tag-filter-options">
+                {commonFilterTags.length ? <small>常用</small> : null}
+                {commonFilterTags.length ? <div>{commonFilterTags.map((tag) => (
+                  <button type="button" key={tag} className={selectedTags.includes(tag) ? 'is-selected' : ''} onClick={() => toggleFilterTag(tag)}>
+                    {selectedTags.includes(tag) ? <Check /> : <Plus />}{tag}
+                  </button>
+                ))}</div> : null}
+                {personalFilterTags.length ? <small>我的标签</small> : null}
+                {personalFilterTags.length ? <div>{personalFilterTags.map((tag) => (
+                  <button type="button" key={tag} className={selectedTags.includes(tag) ? 'is-selected' : ''} onClick={() => toggleFilterTag(tag)}>
+                    {selectedTags.includes(tag) ? <Check /> : <Plus />}{tag}
+                  </button>
+                ))}</div> : null}
+                {!commonFilterTags.length && !personalFilterTags.length ? <span>没有找到标签</span> : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      {selectedTags.length ? (
+        <div className="active-tag-filters">
+          <span>同时包含</span>
+          {selectedTags.map((tag) => <button type="button" key={tag} onClick={() => toggleFilterTag(tag)}>{tag}<X /></button>)}
+          <button type="button" className="clear-tag-filters" onClick={() => onTagsChange([])}>清除</button>
+        </div>
+      ) : null}
 
       <div className="essay-table">
         <div className="essay-table-head">
@@ -310,6 +492,14 @@ function LibraryScreen({
                 <div>
                   <strong>{essay.title}</strong>
                   <span>{essay.excerpt || essay.requirements}</span>
+                  {essay.tags.length ? (
+                    <div className="essay-tags">
+                      {essay.tags.slice(0, 3).map((tag) => (
+                        <button type="button" key={tag} onClick={(event) => { event.stopPropagation(); if (!selectedTags.includes(tag)) onTagsChange([...selectedTags, tag]); }}>{tag}</button>
+                      ))}
+                      {essay.tags.length > 3 ? <i>+{essay.tags.length - 3}</i> : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="table-meta">
@@ -349,8 +539,8 @@ function LibraryScreen({
         ) : (
           <div className="empty-state">
             <Archive />
-            <strong>{query ? '没有找到相关作文' : '本地文库还是空的'}</strong>
-            <span>{query ? '换一个关键词试试。' : '新建第一篇作文，开始本地批改。'}</span>
+            <strong>{query || selectedTags.length ? '没有找到相关作文' : '本地文库还是空的'}</strong>
+            <span>{query || selectedTags.length ? '调整关键词或标签条件试试。' : '新建第一篇作文，开始本地批改。'}</span>
           </div>
         )}
       </div>
@@ -383,12 +573,14 @@ function LibraryScreen({
 
 function NewEssayScreen({
   canReview,
+  availableTags,
   onSaved,
   onReview,
   onNeedSettings,
   notify,
 }: {
   canReview: boolean;
+  availableTags: string[];
   onSaved: () => void;
   onReview: (detail: EssayDetail) => void;
   onNeedSettings: () => void;
@@ -396,6 +588,7 @@ function NewEssayScreen({
 }) {
   const [essayId, setEssayId] = useState<string>();
   const [title, setTitle] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [requirements, setRequirements] = useState('');
   const [reviewPrompt, setReviewPrompt] = useState('');
   const [content, setContent] = useState('');
@@ -407,6 +600,7 @@ function NewEssayScreen({
       const detail = await desktopApi.saveNewDraft({
         essayId,
         title,
+        tags,
         requirements,
         reviewPrompt,
         content,
@@ -432,6 +626,7 @@ function NewEssayScreen({
       const saved = await desktopApi.saveNewDraft({
         essayId,
         title,
+        tags,
         requirements,
         reviewPrompt,
         content,
@@ -485,6 +680,10 @@ function NewEssayScreen({
               placeholder="只对这篇作文生效。例如：重点改细节，保留原来的立意"
             />
           </label>
+          <div className="compose-tag-field">
+            <span>作文标签</span>
+            <TagEditor tags={tags} recentTags={availableTags} onChange={setTags} />
+          </div>
           <div className="privacy-note">
             <ShieldCheck />
             <span>作文文件保存在本地。点击 AI 批改时，会连同写作要求、本篇批改提示词、当前正文和此前修改历程一起发送。</span>
@@ -531,11 +730,15 @@ function NewEssayScreen({
 
 function ReviewScreen({
   initial,
+  availableTags,
   onBack,
+  onTagsChanged,
   notify,
 }: {
   initial: EssayDetail;
+  availableTags: string[];
   onBack: () => void;
+  onTagsChanged: () => void;
   notify: (toast: Toast) => void;
 }) {
   const [detail, setDetail] = useState(initial);
@@ -554,6 +757,9 @@ function ReviewScreen({
   const [newSuggestionId, setNewSuggestionId] = useState('');
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(() => new Set());
   const [versionsCollapsed, setVersionsCollapsed] = useState(false);
+  const [editingTags, setEditingTags] = useState(false);
+  const [draftTags, setDraftTags] = useState(initial.metadata.tags);
+  const [savingTags, setSavingTags] = useState(false);
   const suggestionListRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<'save' | 'review' | 'final' | 'local' | 'new-version' | 'restore' | 'version' | null>(null);
   const isFinal = detail.metadata.status === '已定稿';
@@ -574,6 +780,22 @@ function ReviewScreen({
   useEffect(() => {
     void refreshVersions();
   }, [detail.metadata.currentVersion, refreshVersions]);
+
+  const saveTags = async () => {
+    setSavingTags(true);
+    try {
+      const updated = await desktopApi.updateEssayTags(detail.metadata.id, draftTags);
+      setDetail(updated);
+      setDraftTags(updated.metadata.tags);
+      setEditingTags(false);
+      onTagsChanged();
+      notify({ tone: 'success', title: '标签已更新' });
+    } catch (error) {
+      notify({ tone: 'error', title: '标签保存失败', detail: getErrorMessage(error) });
+    } finally {
+      setSavingTags(false);
+    }
+  };
 
   useEffect(() => {
     if (!newSuggestionId) return;
@@ -859,6 +1081,26 @@ function ReviewScreen({
           <div className="side-essay-title">
             <span>作文题目</span>
             <strong>{detail.metadata.title}</strong>
+          </div>
+          <div className="side-tag-field">
+            <div className="side-field-heading">
+              <span>作文标签</span>
+              {!editingTags ? <button type="button" onClick={() => { setDraftTags(detail.metadata.tags); setEditingTags(true); }}>编辑</button> : null}
+            </div>
+            {editingTags ? (
+              <>
+                <TagEditor tags={draftTags} recentTags={availableTags} onChange={setDraftTags} />
+                <div className="side-tag-actions">
+                  <button type="button" disabled={savingTags} onClick={() => { setDraftTags(detail.metadata.tags); setEditingTags(false); }}>取消</button>
+                  <button type="button" className="is-primary" disabled={savingTags} onClick={() => void saveTags()}>{savingTags ? <LoaderCircle className="spin" /> : <Check />}保存</button>
+                </div>
+              </>
+            ) : (
+              <div className="readonly-tags">
+                {detail.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                {!detail.metadata.tags.length ? <em>未添加</em> : null}
+              </div>
+            )}
           </div>
           <div className="side-readonly-field">
             <span>作文要求</span>
@@ -1416,6 +1658,8 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('library');
   const [settings, setSettings] = useState<SettingsView | null>(null);
   const [essays, setEssays] = useState<EssaySummary[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [activeEssay, setActiveEssay] = useState<EssayDetail | null>(null);
   const [conversationEssay, setConversationEssay] = useState<EssaySummary | null>(null);
   const [query, setQuery] = useState('');
@@ -1433,14 +1677,22 @@ export default function App() {
     window.setTimeout(() => setToast(null), 3600);
   }, []);
 
-  const refreshEssays = useCallback(async (nextQuery = '') => {
+  const refreshEssays = useCallback(async (nextQuery: string, nextTags: string[]) => {
     setLoading(true);
     try {
-      setEssays(await desktopApi.listEssays(nextQuery));
+      setEssays(await desktopApi.listEssays(nextQuery, nextTags));
     } catch (error) {
       notify({ tone: 'error', title: '无法读取本地文库', detail: getErrorMessage(error) });
     } finally {
       setLoading(false);
+    }
+  }, [notify]);
+
+  const refreshTags = useCallback(async () => {
+    try {
+      setAvailableTags(await desktopApi.listEssayTags());
+    } catch (error) {
+      notify({ tone: 'error', title: '标签读取失败', detail: getErrorMessage(error) });
     }
   }, [notify]);
 
@@ -1449,7 +1701,12 @@ export default function App() {
       try {
         const loaded = await desktopApi.loadSettings();
         setSettings(loaded);
-        setEssays(await desktopApi.listEssays(''));
+        const [loadedEssays, loadedTags] = await Promise.all([
+          desktopApi.listEssays('', []),
+          desktopApi.listEssayTags(),
+        ]);
+        setEssays(loadedEssays);
+        setAvailableTags(loadedTags);
       } catch (error) {
         notify({ tone: 'error', title: '应用初始化失败', detail: getErrorMessage(error) });
       } finally {
@@ -1461,15 +1718,15 @@ export default function App() {
 
   useEffect(() => {
     if (!settings) return;
-    const timeout = window.setTimeout(() => void refreshEssays(query), 180);
+    const timeout = window.setTimeout(() => void refreshEssays(query, selectedTags), 180);
     return () => window.clearTimeout(timeout);
-  }, [query, refreshEssays, settings]);
+  }, [query, selectedTags, refreshEssays, settings]);
 
   const navigate = (next: Screen) => {
     if (next !== 'review') setActiveEssay(null);
     if (next !== 'conversations') setConversationEssay(null);
     setScreen(next);
-    if (next === 'library') void refreshEssays(query);
+    if (next === 'library') void refreshEssays(query, selectedTags);
   };
 
   const toggleSidebar = () => {
@@ -1516,9 +1773,12 @@ export default function App() {
         {screen === 'library' ? (
           <LibraryScreen
             essays={essays}
+            availableTags={availableTags}
+            selectedTags={selectedTags}
             query={query}
             loading={loading}
             onQueryChange={setQuery}
+            onTagsChange={setSelectedTags}
             onCreate={() => setScreen('new')}
             onOpen={(id) => void openEssay(id)}
             onConversations={(essay) => {
@@ -1528,28 +1788,36 @@ export default function App() {
             notify={notify}
             onDeleted={(id) => {
               if (activeEssay?.metadata.id === id) setActiveEssay(null);
-              void refreshEssays(query);
+              void refreshEssays(query, selectedTags);
+              void refreshTags();
             }}
           />
         ) : null}
         {screen === 'new' ? (
           <NewEssayScreen
             canReview={settings.hasApiKey}
-            onSaved={() => void refreshEssays(query)}
+            availableTags={availableTags}
+            onSaved={() => { void refreshEssays(query, selectedTags); void refreshTags(); }}
             onReview={(detail) => { setActiveEssay(detail); setScreen('review'); }}
             onNeedSettings={() => setScreen('settings')}
             notify={notify}
           />
         ) : null}
         {screen === 'review' && activeEssay ? (
-          <ReviewScreen initial={activeEssay} onBack={() => navigate('library')} notify={notify} />
+          <ReviewScreen
+            initial={activeEssay}
+            availableTags={availableTags}
+            onBack={() => navigate('library')}
+            onTagsChanged={() => { void refreshEssays(query, selectedTags); void refreshTags(); }}
+            notify={notify}
+          />
         ) : null}
         {screen === 'settings' ? (
           <SettingsScreen
             initial={settings}
             theme={theme}
             onThemeChange={changeTheme}
-            onSaved={(next) => { setSettings(next); void refreshEssays(query); }}
+            onSaved={(next) => { setSettings(next); void refreshEssays(query, selectedTags); void refreshTags(); }}
             notify={notify}
           />
         ) : null}
