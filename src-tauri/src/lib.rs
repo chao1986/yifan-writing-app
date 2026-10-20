@@ -14,6 +14,7 @@ const KEYRING_SERVICE: &str = "com.ttlx.yifan-writing-app";
 const KEYRING_USER: &str = "model-api-key";
 const MAX_MODEL_CONVERSATIONS_PER_ESSAY: usize = 50;
 const MAX_ESSAY_TAGS: usize = 8;
+const MAX_COMMON_TAGS: usize = 20;
 const MAX_TAG_CHARACTERS: usize = 10;
 
 const DEFAULT_REVIEW_PROMPT: &str = r#"你是一名严谨、克制的中文作文修改助手。你的任务不是写评价报告，也不是替学生重写整篇作文，而是定位真正需要修改的原句，并提供可以直接替换的文本。
@@ -37,6 +38,8 @@ struct StoredSettings {
     model: String,
     library_path: String,
     review_prompt: String,
+    #[serde(default = "default_common_tags")]
+    common_tags: Vec<String>,
     #[serde(default)]
     api_key: String,
 }
@@ -49,6 +52,7 @@ struct SettingsView {
     model: String,
     library_path: String,
     review_prompt: String,
+    common_tags: Vec<String>,
     has_api_key: bool,
 }
 
@@ -60,7 +64,16 @@ struct SettingsInput {
     model: String,
     library_path: String,
     review_prompt: String,
+    #[serde(default = "default_common_tags")]
+    common_tags: Vec<String>,
     api_key: Option<String>,
+}
+
+fn default_common_tags() -> Vec<String> {
+    ["记叙文", "议论文", "说明文", "散文", "读后感", "应用文"]
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,6 +371,7 @@ fn read_settings(app: &AppHandle) -> Result<StoredSettings, String> {
             model: "gpt-5-mini".to_string(),
             library_path: default_library_path(app)?,
             review_prompt: DEFAULT_REVIEW_PROMPT.to_string(),
+            common_tags: default_common_tags(),
             api_key: String::new(),
         }
     };
@@ -695,6 +709,18 @@ fn ensure_non_empty(title: &str, content: &str) -> Result<(), String> {
 }
 
 fn normalize_tags(tags: Vec<String>) -> Result<Vec<String>, String> {
+    normalize_tag_list(tags, MAX_ESSAY_TAGS, "每篇作文最多添加")
+}
+
+fn normalize_common_tags(tags: Vec<String>) -> Result<Vec<String>, String> {
+    normalize_tag_list(tags, MAX_COMMON_TAGS, "常用标签最多设置")
+}
+
+fn normalize_tag_list(
+    tags: Vec<String>,
+    maximum: usize,
+    limit_message: &str,
+) -> Result<Vec<String>, String> {
     let mut normalized = Vec::new();
     let mut keys = std::collections::HashSet::new();
     for raw in tags {
@@ -715,8 +741,8 @@ fn normalize_tags(tags: Vec<String>) -> Result<Vec<String>, String> {
         if !keys.insert(key) {
             continue;
         }
-        if normalized.len() >= MAX_ESSAY_TAGS {
-            return Err(format!("每篇作文最多添加 {MAX_ESSAY_TAGS} 个标签。"));
+        if normalized.len() >= maximum {
+            return Err(format!("{limit_message} {maximum} 个标签。"));
         }
         normalized.push(tag.to_string());
     }
@@ -878,6 +904,7 @@ fn load_settings(app: AppHandle) -> Result<SettingsView, String> {
         model: settings.model,
         library_path: settings.library_path,
         review_prompt: settings.review_prompt,
+        common_tags: settings.common_tags,
         has_api_key,
     })
 }
@@ -913,6 +940,7 @@ fn save_settings(app: AppHandle, input: SettingsInput) -> Result<SettingsView, S
         } else {
             input.review_prompt.trim().to_string()
         },
+        common_tags: normalize_common_tags(input.common_tags)?,
         api_key,
     };
 
@@ -1061,6 +1089,7 @@ async fn test_model_connection(app: AppHandle, input: SettingsInput) -> Result<S
         model: input.model,
         library_path: input.library_path,
         review_prompt: input.review_prompt,
+        common_tags: input.common_tags,
         api_key: api_key.clone(),
     };
     let content = request_chat_recorded(
@@ -1840,6 +1869,7 @@ mod tests {
             model: "test-model".to_string(),
             library_path: "/tmp/yifan".to_string(),
             review_prompt: "test".to_string(),
+            common_tags: default_common_tags(),
             api_key: "secret-key".to_string(),
         };
         let serialized = serde_json::to_string(&settings).unwrap();
@@ -1852,6 +1882,7 @@ mod tests {
             model: settings.model,
             library_path: settings.library_path,
             review_prompt: settings.review_prompt,
+            common_tags: settings.common_tags,
             has_api_key: true,
         };
         let frontend = serde_json::to_string(&view).unwrap();
@@ -1924,6 +1955,27 @@ mod tests {
         assert_eq!(tags, vec!["记叙文", "成长"]);
         assert!(normalize_tags(vec!["这是一个超过十个字符的作文标签".to_string()]).is_err());
         assert!(normalize_tags((0..9).map(|index| format!("标签{index}")).collect()).is_err());
+    }
+
+    #[test]
+    fn gives_old_settings_default_common_tags() {
+        let settings: StoredSettings = serde_json::from_str(
+            r#"{"providerName":"测试服务","apiBaseUrl":"https://example.com/v1","model":"test-model","libraryPath":"/tmp/yifan","reviewPrompt":"test"}"#,
+        )
+        .unwrap();
+        assert_eq!(settings.common_tags, default_common_tags());
+        assert_eq!(
+            normalize_common_tags(vec![" 记叙文 ".to_string(), "#成长".to_string()]).unwrap(),
+            vec!["记叙文", "成长"]
+        );
+        assert!(
+            normalize_common_tags(
+                (0..=MAX_COMMON_TAGS)
+                    .map(|index| format!("标签{index}"))
+                    .collect()
+            )
+            .is_err()
+        );
     }
 
     #[test]

@@ -56,8 +56,8 @@ type ReviewView = 'annotated' | 'preview';
 type ThemeMode = 'light' | 'dark';
 type Toast = { tone: 'success' | 'error'; title: string; detail?: string };
 
-const COMMON_TAGS = ['记叙文', '议论文', '说明文', '散文', '读后感', '应用文'];
 const MAX_ESSAY_TAGS = 8;
+const MAX_COMMON_TAGS = 20;
 const MAX_TAG_CHARACTERS = 10;
 
 function getErrorMessage(error: unknown) {
@@ -115,18 +115,21 @@ function uniqueTags(tags: string[]) {
 
 function TagEditor({
   tags,
+  commonTags,
   recentTags,
   onChange,
 }: {
   tags: string[];
+  commonTags: string[];
   recentTags: string[];
   onChange: (tags: string[]) => void;
 }) {
   const [input, setInput] = useState('');
   const [message, setMessage] = useState('');
   const selectedKeys = new Set(tags.map((tag) => tag.toLocaleLowerCase()));
+  const commonKeys = new Set(commonTags.map((tag) => tag.toLocaleLowerCase()));
   const recent = uniqueTags(recentTags)
-    .filter((tag) => !COMMON_TAGS.includes(tag) && !selectedKeys.has(tag.toLocaleLowerCase()))
+    .filter((tag) => !commonKeys.has(tag.toLocaleLowerCase()) && !selectedKeys.has(tag.toLocaleLowerCase()))
     .slice(0, 12);
 
   const remove = (tag: string) => {
@@ -168,11 +171,12 @@ function TagEditor({
       <div className="tag-group">
         <small>常用标签</small>
         <div className="tag-chip-row">
-          {COMMON_TAGS.map((tag) => (
+          {commonTags.map((tag) => (
             <button type="button" key={tag} className={`tag-chip ${selectedKeys.has(tag.toLocaleLowerCase()) ? 'is-selected' : ''}`} onClick={() => toggleCommon(tag)}>
               {selectedKeys.has(tag.toLocaleLowerCase()) ? <Check /> : <Plus />}{tag}
             </button>
           ))}
+          {!commonTags.length ? <span className="empty-tag-hint">可在设置中添加常用标签</span> : null}
         </div>
       </div>
       {recent.length ? (
@@ -207,6 +211,79 @@ function TagEditor({
         <button type="button" aria-label="添加标签" disabled={!input.trim()} onClick={() => add(input)}><Plus /></button>
       </div>
       {message ? <span className="tag-message">{message}</span> : null}
+    </div>
+  );
+}
+
+function CommonTagsEditor({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [input, setInput] = useState('');
+  const [message, setMessage] = useState('');
+
+  const add = (raw: string) => {
+    const candidates = raw
+      .split(/[，,、\n]+/)
+      .map((tag) => tag.trim().replace(/^#+/, '').trim())
+      .filter(Boolean);
+    if (!candidates.length) return;
+    const next = [...tags];
+    for (const candidate of candidates) {
+      if (candidate.length > MAX_TAG_CHARACTERS) {
+        setMessage(`单个标签最多 ${MAX_TAG_CHARACTERS} 个字符`);
+        return;
+      }
+      if (next.some((tag) => tag.toLocaleLowerCase() === candidate.toLocaleLowerCase())) continue;
+      if (next.length >= MAX_COMMON_TAGS) {
+        setMessage(`最多设置 ${MAX_COMMON_TAGS} 个常用标签`);
+        return;
+      }
+      next.push(candidate);
+    }
+    onChange(next);
+    setInput('');
+    setMessage('');
+  };
+
+  return (
+    <div className="common-tags-editor">
+      <div className="selected-tags common-tag-list">
+        {tags.map((tag) => (
+          <button
+            type="button"
+            key={tag}
+            className="selected-tag"
+            title={`删除 ${tag}`}
+            onClick={() => { onChange(tags.filter((current) => current !== tag)); setMessage(''); }}
+          >
+            {tag}<X />
+          </button>
+        ))}
+        {!tags.length ? <span>暂无常用标签，新建作文时仍可手动输入标签。</span> : null}
+      </div>
+      <div className="common-tag-input">
+        <input
+          value={input}
+          maxLength={MAX_TAG_CHARACTERS}
+          onChange={(event) => { setInput(event.target.value); setMessage(''); }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === 'Enter' || event.key === ',' || event.key === '，') {
+              event.preventDefault();
+              add(input);
+            }
+          }}
+          placeholder="输入标签后按回车，例如：小说"
+        />
+        <button type="button" disabled={!input.trim()} onClick={() => add(input)}><Plus /> 添加</button>
+      </div>
+      <small className={message ? 'tag-message' : 'field-note'}>
+        {message || `点击标签右侧 × 可删除；最多 ${MAX_COMMON_TAGS} 个，每个不超过 ${MAX_TAG_CHARACTERS} 个字符。`}
+      </small>
     </div>
   );
 }
@@ -337,6 +414,7 @@ function Sidebar({
 
 function LibraryScreen({
   essays,
+  commonTags,
   availableTags,
   selectedTags,
   query,
@@ -350,6 +428,7 @@ function LibraryScreen({
   notify,
 }: {
   essays: EssaySummary[];
+  commonTags: string[];
   availableTags: string[];
   selectedTags: string[];
   query: string;
@@ -368,9 +447,10 @@ function LibraryScreen({
   const [tagQuery, setTagQuery] = useState('');
   const tagFilterRef = useRef<HTMLDivElement>(null);
   const normalizedTagQuery = tagQuery.trim().toLocaleLowerCase();
-  const commonFilterTags = COMMON_TAGS.filter((tag) => tag.toLocaleLowerCase().includes(normalizedTagQuery));
+  const commonKeys = new Set(commonTags.map((tag) => tag.toLocaleLowerCase()));
+  const commonFilterTags = commonTags.filter((tag) => tag.toLocaleLowerCase().includes(normalizedTagQuery));
   const personalFilterTags = uniqueTags(availableTags).filter((tag) =>
-    !COMMON_TAGS.includes(tag) && tag.toLocaleLowerCase().includes(normalizedTagQuery),
+    !commonKeys.has(tag.toLocaleLowerCase()) && tag.toLocaleLowerCase().includes(normalizedTagQuery),
   );
 
   useEffect(() => {
@@ -573,6 +653,7 @@ function LibraryScreen({
 
 function NewEssayScreen({
   canReview,
+  commonTags,
   availableTags,
   onSaved,
   onReview,
@@ -580,6 +661,7 @@ function NewEssayScreen({
   notify,
 }: {
   canReview: boolean;
+  commonTags: string[];
   availableTags: string[];
   onSaved: () => void;
   onReview: (detail: EssayDetail) => void;
@@ -682,7 +764,7 @@ function NewEssayScreen({
           </label>
           <div className="compose-tag-field">
             <span>作文标签</span>
-            <TagEditor tags={tags} recentTags={availableTags} onChange={setTags} />
+            <TagEditor tags={tags} commonTags={commonTags} recentTags={availableTags} onChange={setTags} />
           </div>
           <div className="privacy-note">
             <ShieldCheck />
@@ -730,12 +812,14 @@ function NewEssayScreen({
 
 function ReviewScreen({
   initial,
+  commonTags,
   availableTags,
   onBack,
   onTagsChanged,
   notify,
 }: {
   initial: EssayDetail;
+  commonTags: string[];
   availableTags: string[];
   onBack: () => void;
   onTagsChanged: () => void;
@@ -1089,7 +1173,7 @@ function ReviewScreen({
             </div>
             {editingTags ? (
               <>
-                <TagEditor tags={draftTags} recentTags={availableTags} onChange={setDraftTags} />
+                <TagEditor tags={draftTags} commonTags={commonTags} recentTags={availableTags} onChange={setDraftTags} />
                 <div className="side-tag-actions">
                   <button type="button" disabled={savingTags} onClick={() => { setDraftTags(detail.metadata.tags); setEditingTags(false); }}>取消</button>
                   <button type="button" className="is-primary" disabled={savingTags} onClick={() => void saveTags()}>{savingTags ? <LoaderCircle className="spin" /> : <Check />}保存</button>
@@ -1540,7 +1624,7 @@ function SettingsScreen({
 
   useEffect(() => setForm({ ...initial, apiKey: '' }), [initial]);
 
-  const update = (key: keyof SettingsInput, value: string) =>
+  const update = <Key extends keyof SettingsInput,>(key: Key, value: SettingsInput[Key]) =>
     setForm((current) => ({ ...current, [key]: value }));
 
   const chooseFolder = async () => {
@@ -1633,6 +1717,14 @@ function SettingsScreen({
             <Database />
             <span>每篇作文独立保存提示词、草稿、批改记录、完整修改历程和最终定稿。</span>
           </div>
+        </div>
+
+        <div className="settings-panel tag-settings panel">
+          <div className="section-title">
+            <strong>常用标签</strong>
+            <span>用于新建作文、作文详情和文库筛选中的快捷选择。</span>
+          </div>
+          <CommonTagsEditor tags={form.commonTags} onChange={(tags) => update('commonTags', tags)} />
         </div>
 
         <div className="settings-panel prompt-settings panel">
@@ -1773,6 +1865,7 @@ export default function App() {
         {screen === 'library' ? (
           <LibraryScreen
             essays={essays}
+            commonTags={settings.commonTags}
             availableTags={availableTags}
             selectedTags={selectedTags}
             query={query}
@@ -1796,6 +1889,7 @@ export default function App() {
         {screen === 'new' ? (
           <NewEssayScreen
             canReview={settings.hasApiKey}
+            commonTags={settings.commonTags}
             availableTags={availableTags}
             onSaved={() => { void refreshEssays(query, selectedTags); void refreshTags(); }}
             onReview={(detail) => { setActiveEssay(detail); setScreen('review'); }}
@@ -1806,6 +1900,7 @@ export default function App() {
         {screen === 'review' && activeEssay ? (
           <ReviewScreen
             initial={activeEssay}
+            commonTags={settings.commonTags}
             availableTags={availableTags}
             onBack={() => navigate('library')}
             onTagsChanged={() => { void refreshEssays(query, selectedTags); void refreshTags(); }}

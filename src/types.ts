@@ -73,6 +73,7 @@ export type SettingsView = {
   model: string;
   libraryPath: string;
   reviewPrompt: string;
+  commonTags: string[];
   hasApiKey: boolean;
 };
 
