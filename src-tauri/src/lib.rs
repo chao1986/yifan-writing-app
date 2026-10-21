@@ -910,6 +910,13 @@ fn load_settings(app: AppHandle) -> Result<SettingsView, String> {
 }
 
 #[tauri::command]
+fn print_current_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window
+        .print()
+        .map_err(|error| format!("无法打开系统打印窗口：{error}"))
+}
+
+#[tauri::command]
 fn save_settings(app: AppHandle, input: SettingsInput) -> Result<SettingsView, String> {
     if input.api_base_url.trim().is_empty() || input.model.trim().is_empty() {
         return Err("API 地址和模型名称不能为空。".to_string());
@@ -2124,6 +2131,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            print_current_window,
             load_settings,
             save_settings,
             test_model_connection,

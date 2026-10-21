@@ -13,6 +13,8 @@ import type {
 } from '../types';
 
 export const desktopApi = {
+  printCurrentWindow: () => invoke<void>('print_current_window'),
+
   loadSettings: () => invoke<SettingsView>('load_settings'),
 
   saveSettings: (input: SettingsInput) =>

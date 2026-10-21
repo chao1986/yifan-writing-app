@@ -3758,3 +3758,483 @@ button.version-node:hover {
   color: var(--ui-text);
   background: var(--ui-surface-raised);
 }
+
+/* Readability tuning: quieter page titles, larger working text. */
+.page-heading h1,
+.review-heading h1 {
+  font-size: clamp(26px, 2vw, 29px);
+}
+
+.page-heading p,
+.review-heading p {
+  font-size: 14px;
+}
+
+.button,
+.detail-back {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.side-nav button,
+.search-panel input {
+  font-size: 14px;
+}
+
+.local-card-title,
+.local-card > span,
+.local-card > small {
+  font-size: 12px;
+}
+
+.tag-filter-trigger,
+.search-panel .tag-filter-search input {
+  font-size: 13px;
+}
+
+.tag-filter-options > small,
+.active-tag-filters > span {
+  font-size: 12px;
+}
+
+.tag-filter-options button,
+.active-tag-filters button {
+  font-size: 12px;
+}
+
+.essay-table-head {
+  font-size: 12px;
+}
+
+.essay-main strong {
+  font-size: 16px;
+}
+
+.essay-main span,
+.essay-main > i {
+  font-size: 13px;
+}
+
+.essay-tags button,
+.essay-tags i {
+  font-size: 11px;
+}
+
+.table-meta,
+.status-chip,
+.essay-row time,
+.row-conversations {
+  font-size: 13px;
+}
+
+.row-conversations {
+  width: 108px;
+  height: 34px;
+}
+
+.empty-state strong,
+.suggestion-empty strong {
+  font-size: 16px;
+}
+
+.empty-state span,
+.suggestion-empty span {
+  font-size: 13px;
+}
+
+label > span,
+.compose-tag-field > span {
+  font-size: 13px;
+}
+
+label input,
+label textarea,
+.common-tag-input input {
+  font-size: 14px;
+}
+
+.tag-group > small,
+.tag-message {
+  font-size: 11px;
+}
+
+.tag-chip,
+.selected-tag {
+  min-height: 29px;
+  font-size: 12px;
+}
+
+.selected-tags > span,
+.empty-tag-hint,
+.tag-input-row input {
+  font-size: 12px;
+}
+
+.privacy-note,
+.storage-example,
+.field-note {
+  font-size: 13px;
+}
+
+.panel-head strong,
+.suggestion-heading strong,
+.section-title strong {
+  font-size: 15px;
+}
+
+.side-essay-title span,
+.side-readonly-field > span,
+.side-field-heading > span,
+.readonly-tags em {
+  font-size: 12px;
+}
+
+.side-essay-title strong {
+  font-size: 16px;
+}
+
+.side-field-heading > button,
+.readonly-tags span,
+.side-tag-actions button {
+  font-size: 11px;
+}
+
+.side-readonly-field p {
+  font-size: 13px;
+}
+
+.version-section-toggle strong,
+.version-node strong {
+  font-size: 13px;
+}
+
+.version-section-toggle span,
+.version-node span,
+.version-viewing-note {
+  font-size: 11px;
+}
+
+.mode-row,
+.mode-switch button,
+.history-view-label {
+  font-size: 13px;
+}
+
+.local-edit-title,
+.replacement {
+  font-size: 14px;
+}
+
+.selected-quote,
+.local-edit-box textarea,
+.local-edit-submit,
+.suggestion-card del,
+.suggestion-detail > p,
+.collapse-suggestion,
+.collapsed-suggestion strong {
+  font-size: 12px;
+}
+
+.suggestion-meta-compact span,
+.suggestion-meta-compact em,
+.suggestion-state,
+.collapsed-suggestion span {
+  font-size: 11px;
+}
+
+.conversation-list-title span,
+.conversation-select small,
+.conversation-meta span,
+.conversation-message header span {
+  font-size: 12px;
+}
+
+.conversation-list-title i {
+  font-size: 11px;
+}
+
+.conversation-select strong,
+.conversation-message header strong,
+.conversation-empty strong {
+  font-size: 15px;
+}
+
+.conversation-meta strong,
+.conversation-empty span,
+.toast strong {
+  font-size: 13px;
+}
+
+.conversation-message pre,
+.toast span {
+  font-size: 12px;
+}
+
+.theme-options button,
+.tag-settings .section-title span,
+.common-tag-list .selected-tag,
+.common-tag-input button,
+.key-state {
+  font-size: 13px;
+}
+
+/* Give review suggestions more room and stronger visual hierarchy. */
+.review-grid:not(.mode-preview) {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 460px);
+}
+
+.suggestion-heading strong {
+  font-size: 16px;
+}
+
+.suggestion-heading b {
+  min-width: 30px;
+  height: 26px;
+  color: var(--ui-accent-strong);
+  border-color: var(--ui-border-strong);
+  background: var(--ui-accent-soft);
+  font-size: 12px;
+}
+
+.local-edit-title {
+  color: var(--ui-text);
+  font-size: 15px;
+}
+
+.selected-quote,
+.local-edit-box textarea,
+.local-edit-submit {
+  font-size: 13px;
+}
+
+.suggestion-card {
+  border-color: var(--ui-border);
+  background: var(--ui-surface-raised);
+}
+
+.suggestion-card.is-active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface-raised));
+}
+
+.suggestion-toolbar {
+  grid-template-columns: 38px minmax(0, 1fr) 80px;
+}
+
+.suggestion-toolbar.is-readonly {
+  grid-template-columns: 38px minmax(0, 1fr) 70px;
+}
+
+.suggestion-index,
+.suggestion-icon-actions,
+.suggestion-readonly-actions,
+.suggestion-action,
+.suggestion-meta-compact,
+.suggestion-state,
+.suggestion-expand-icon {
+  height: 44px;
+}
+
+.suggestion-index {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.suggestion-meta-compact {
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.suggestion-meta-compact span {
+  color: var(--ui-accent-strong);
+  font-size: 12px;
+}
+
+.suggestion-meta-compact em {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.suggestion-action {
+  color: var(--ui-text-secondary);
+}
+
+.suggestion-action svg {
+  width: 17px;
+}
+
+.suggestion-action.is-selected:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.suggestion-detail {
+  padding: 14px 16px 15px;
+}
+
+.suggestion-card del {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border-left: 3px solid color-mix(in srgb, var(--ui-danger) 72%, var(--ui-border));
+  border-radius: 6px;
+  color: var(--ui-text-secondary);
+  background: color-mix(in srgb, var(--ui-danger) 8%, transparent);
+  font-size: 14px;
+  line-height: 1.75;
+  text-decoration-color: color-mix(in srgb, var(--ui-danger) 70%, transparent);
+  text-decoration-thickness: 1px;
+}
+
+.suggestion-card.is-ignored del {
+  color: var(--ui-text-secondary);
+  border-left-color: var(--ui-border-strong);
+  background: var(--ui-surface-muted);
+  text-decoration: none;
+}
+
+.replacement {
+  padding: 9px 11px;
+  border-left: 3px solid color-mix(in srgb, var(--ui-success) 72%, var(--ui-border));
+  border-radius: 6px;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-success) 9%, transparent);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.replacement svg {
+  width: 16px;
+  color: var(--ui-success);
+}
+
+.suggestion-detail > p {
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.collapse-suggestion {
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+
+.collapsed-suggestion {
+  min-height: 44px;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
+}
+
+.collapsed-suggestion span {
+  font-size: 12px;
+}
+
+.collapsed-suggestion strong {
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 1260px) {
+  .review-grid:not(.mode-preview) {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}
+
+.theme-light .review-mark:not(.kind-错别字):not(.kind-段落重写):not(.kind-标点):not(.is-ignored) {
+  color: #31569a;
+  background: #e9f0ff;
+  box-shadow: inset 0 -2px #5d7fd0;
+}
+
+.preview-print-button {
+  min-width: 92px;
+}
+
+.print-essay-heading {
+  display: none;
+}
+
+@page {
+  size: A4;
+  margin: 20mm 18mm;
+}
+
+@media print {
+  html,
+  body,
+  #root,
+  .content-shell {
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .ambient-grid,
+  .sidebar,
+  .review-toolbar,
+  .version-rail,
+  .review-bottom-actions,
+  .panel-head,
+  .suggestions {
+    display: none !important;
+  }
+
+  .review-page,
+  .review-workspace,
+  .review-main,
+  .review-grid,
+  .review-grid.mode-preview,
+  .paper,
+  .preview-copy {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #111 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .print-essay-heading {
+    display: block;
+    margin: 0 0 12mm;
+    text-align: center;
+  }
+
+  .print-essay-heading h1 {
+    margin: 0;
+    color: #111;
+    font: 700 22pt/1.4 "Noto Serif SC", "Songti SC", STSong, serif;
+    letter-spacing: 0.06em;
+  }
+
+  .preview-copy {
+    font: 12pt/2 "Noto Serif SC", "Songti SC", STSong, serif !important;
+    letter-spacing: 0.025em;
+  }
+
+  .preview-copy p {
+    margin: 0 0 1.2em;
+    orphans: 2;
+    text-indent: 2em;
+    widows: 2;
+  }
+}

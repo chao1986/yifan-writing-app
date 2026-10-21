@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Printer,
   RefreshCw,
   Save,
   Search,
@@ -845,7 +846,10 @@ function ReviewScreen({
   const [draftTags, setDraftTags] = useState(initial.metadata.tags);
   const [savingTags, setSavingTags] = useState(false);
   const suggestionListRef = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<'save' | 'review' | 'final' | 'local' | 'new-version' | 'restore' | 'version' | null>(null);
+  const suggestionStatusesRef = useRef(
+    new Map(initial.suggestions.map((suggestion) => [suggestion.id, suggestion.status])),
+  );
+  const [busy, setBusy] = useState<'save' | 'review' | 'final' | 'local' | 'new-version' | 'restore' | 'version' | 'print' | null>(null);
   const isFinal = detail.metadata.status === '已定稿';
   const requirements = detail.metadata.requirements;
   const reviewPrompt = detail.metadata.reviewPrompt ?? '';
@@ -864,6 +868,12 @@ function ReviewScreen({
   useEffect(() => {
     void refreshVersions();
   }, [detail.metadata.currentVersion, refreshVersions]);
+
+  useEffect(() => {
+    suggestionStatusesRef.current = new Map(
+      suggestions.map((suggestion) => [suggestion.id, suggestion.status]),
+    );
+  }, [suggestions]);
 
   const saveTags = async () => {
     setSavingTags(true);
@@ -901,12 +911,15 @@ function ReviewScreen({
     if (isFinal) return;
     const suggestion = suggestions.find((item) => item.id === id);
     if (!suggestion) return;
+    const currentStatus = suggestionStatusesRef.current.get(id) ?? suggestion.status;
+    if (currentStatus === nextStatus) return;
+    suggestionStatusesRef.current.set(id, nextStatus);
 
     setContent((current) => {
       if (nextStatus === 'accepted') {
         return replaceOccurrence(current, suggestion.original, suggestion.replacement, suggestion.occurrence);
       }
-      if (suggestion.status === 'accepted') {
+      if (currentStatus === 'accepted') {
         return replaceOccurrence(current, suggestion.replacement, suggestion.original, suggestion.occurrence);
       }
       return current;
@@ -925,10 +938,17 @@ function ReviewScreen({
 
   const acceptAll = () => {
     if (isFinal) return;
+    const statuses = suggestionStatusesRef.current;
+    const transitions = suggestions.map((suggestion) => ({
+      suggestion,
+      status: statuses.get(suggestion.id) ?? suggestion.status,
+    }));
+    if (transitions.every(({ status }) => status === 'accepted')) return;
+    transitions.forEach(({ suggestion }) => statuses.set(suggestion.id, 'accepted'));
     setContent((current) =>
-      suggestions.reduce(
-        (next, suggestion) =>
-          suggestion.status === 'accepted'
+      transitions.reduce(
+        (next, { suggestion, status }) =>
+          status === 'accepted'
             ? next
             : replaceOccurrence(next, suggestion.original, suggestion.replacement, suggestion.occurrence),
         current,
@@ -941,10 +961,17 @@ function ReviewScreen({
 
   const ignoreAll = () => {
     if (isFinal) return;
+    const statuses = suggestionStatusesRef.current;
+    const transitions = suggestions.map((suggestion) => ({
+      suggestion,
+      status: statuses.get(suggestion.id) ?? suggestion.status,
+    }));
+    if (transitions.every(({ status }) => status === 'ignored')) return;
+    transitions.forEach(({ suggestion }) => statuses.set(suggestion.id, 'ignored'));
     setContent((current) =>
-      suggestions.reduce(
-        (next, suggestion) =>
-          suggestion.status === 'accepted'
+      transitions.reduce(
+        (next, { suggestion, status }) =>
+          status === 'accepted'
             ? replaceOccurrence(next, suggestion.replacement, suggestion.original, suggestion.occurrence)
             : next,
         current,
@@ -992,6 +1019,7 @@ function ReviewScreen({
         occurrence: selectedOccurrence,
         instruction: localInstruction,
       });
+      suggestionStatusesRef.current.set(suggestion.id, suggestion.status);
       setSuggestions((current) => [suggestion, ...current]);
       setActiveId(suggestion.id);
       setNewSuggestionId(suggestion.id);
@@ -1141,6 +1169,18 @@ function ReviewScreen({
     }
   };
 
+  const printPreview = async () => {
+    if (view !== 'preview') return;
+    setBusy('print');
+    try {
+      await desktopApi.printCurrentWindow();
+    } catch (error) {
+      notify({ tone: 'error', title: '无法打开打印窗口', detail: getErrorMessage(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <section className="review-page">
       <header className="detail-toolbar review-toolbar">
@@ -1252,9 +1292,14 @@ function ReviewScreen({
                 <strong>
                   {isViewingHistory
                     ? `第 ${viewedVersion!.version} 版正文 · 只读`
-                    : view === 'annotated' ? '原文标记 · 可直接编辑' : '当前草稿预览'}
+                    : view === 'annotated' ? '原文标记' : '预览'}
                 </strong>
               </div>
+              {view === 'preview' ? (
+                <button type="button" className="button secondary preview-print-button" disabled={Boolean(busy)} onClick={() => void printPreview()}>
+                  {busy === 'print' ? <LoaderCircle className="spin" /> : <Printer />} 打印
+                </button>
+              ) : null}
             </div>
             {view === 'annotated' ? (
               <div
@@ -1277,6 +1322,9 @@ function ReviewScreen({
               </div>
             ) : (
               <article className="essay-copy preview-copy">
+                <header className="print-essay-heading">
+                  <h1>{detail.metadata.title}</h1>
+                </header>
                 {visibleContent.split(/\n\s*\n/).map((paragraph, index) => <p key={`${index}-${paragraph.slice(0, 12)}`}>{paragraph}</p>)}
               </article>
             )}
@@ -1331,7 +1379,7 @@ function ReviewScreen({
                             <button
                               type="button"
                               className={`suggestion-action accept-action ${suggestion.status === 'accepted' ? 'is-selected' : ''}`}
-                              disabled={isFinal}
+                              disabled={isFinal || suggestion.status === 'accepted'}
                               onClick={() => updateSuggestion(suggestion.id, 'accepted')}
                               aria-label="接受建议"
                               title="接受建议"
@@ -1341,7 +1389,7 @@ function ReviewScreen({
                             <button
                               type="button"
                               className={`suggestion-action ignore-action ${suggestion.status === 'ignored' ? 'is-selected' : ''}`}
-                              disabled={isFinal}
+                              disabled={isFinal || suggestion.status === 'ignored'}
                               onClick={() => updateSuggestion(suggestion.id, 'ignored')}
                               aria-label="忽略建议"
                               title="忽略建议"
